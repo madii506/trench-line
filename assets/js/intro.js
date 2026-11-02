@@ -311,6 +311,7 @@ async function start() {
     if (d < 10 && phase !== 'gate') { rdT = t; cam.getWorldDirection(fwd); for (let i = 0; i < RD; i++) { const f = 1 + rnd() * 4; rdp.set([cam.position.x + fwd.x * f + (rnd() - .5) * 2.6, .3 + rnd() * 2.4, cam.position.z + fwd.z * f + (rnd() - .5) * 2.6], i * 3); rdv[i] = -(1 + rnd() * 2.5); } }
     if (d < 14) { swV += (rnd() - .5) * 1.6; swW += (rnd() - .5) * 1.2; flick = 1; }
     const s = SND(); if (s && entered) { s.boom(nr, Math.min(.5, d / 340)); if (d < 6.5) s.muffle(1.6); }
+    if (window.__fxlog) window.__fxlog.push(['boom', performance.now() / 1000, nr, d]);
   }
   function blastsTick(dt) {
     for (const b of blasts) {
@@ -392,7 +393,7 @@ async function start() {
     await typeLine('.trench os · line 7', GB, 18);
     await typeLine(LOW ? 'own the trenches.' : 'live calls · the basket · the board', GD, 10);
     S2.lines.push({ t: '' }); touch(); await sleep(120); if (ended) return;
-    S2.input = ''; S2.hint = true; touch();
+    S2.input = ''; S2.hint = true; touch(); if (window.__fxlog) window.__fxlog.push(['prompt', performance.now() / 1000]);
     const name = await new Promise(res => { submit = () => { submit = null; clearTimeout(idleT); res(S2.input || 'anon'); }; armIdle(1700); });
     const user = setUser(name); window.__trenchHold = Date.now() + 5000;
     S2.lines.push({ t: 'callsign: ' + S2.input }); S2.input = null; S2.hint = false; touch();
@@ -425,7 +426,7 @@ async function start() {
   const swFrom = V3(0, 0, 0), lookFrom = V3(0, 0, 0), look = V3(-1, -1.6, 3), tmpL = V3(0, 0, 0), tmpA = V3(0, 0, 0), tmpB = V3(0, 0, 0), right = V3(0, 0, 0), UP = V3(0, 1, 0);
   const orbit = tt => { const a = .9 + tt * .03; return V3(-1 + Math.sin(a) * 24, 14 + Math.sin(tt * .2) * 1.2, 4 + Math.cos(a) * 24); };
   goFn = () => { if (phase !== 'gate') return; phase = 'swoop'; swT = t; swFrom.copy(cam.position); lookFrom.copy(look); nextBlast = t + 2.6; };
-  function push() { if (pushT < 0) { pushT = t; S2.phase = 'push'; window.__trenchHold = Date.now() + 2500; const s = SND(); if (s) s.whoosh(); } }
+  function push() { if (pushT < 0) { pushT = t; S2.phase = 'push'; window.__trenchHold = Date.now() + 2500; const s = SND(); if (s) s.whoosh(); if (window.__fxlog) window.__fxlog.push(['whoosh', performance.now() / 1000]); } }
   function schedule() {
     if (phase === 'gate') { const x = -1 + (rnd() - .5) * 40, z = 4 - rnd() * 40; if (near(x, z).d > 4) blast(x, z, .8 + rnd() * .5); nextBlast = t + 2 + rnd() * 1.8; return; }
     if (phase === 'walk') {
@@ -447,7 +448,7 @@ async function start() {
       const y = 2 + up * 16 - fall * 13, fl = .85 + .15 * Math.sin(t * 37 + f.d * 9) * Math.sin(t * 13), I = (ph < .12 ? up * 110 : 110 * (1 - fall * fall)) * fl;
       f.L.position.set(f.x + Math.sin(t * .4 + f.d) * 1.5, y, f.z); f.L.intensity = I; f.s.position.copy(f.L.position); f.s.material.opacity = Math.min(1, I / 50);
     }
-    if (t > nextBoom) { boom = 1; boomX = (rnd() - .5) * 90; nextBoom = t + 1.4 + rnd() * 2.4; const s = SND(); if (s && entered) s.boom(.05 + rnd() * .1, .6 + rnd()); }
+    if (t > nextBoom) { boom = 1; boomX = (rnd() - .5) * 90; nextBoom = t + 1.4 + rnd() * 2.4; const s = SND(); if (s && entered) s.boom(.05 + rnd() * .1, .6 + rnd()); if (window.__fxlog) window.__fxlog.push(['far', performance.now() / 1000]); }
     boom *= Math.pow(.02, dt); shake *= Math.pow(.06, dt);
     art.intensity = boom * 260; art.position.x = boomX; artSpr.position.x = boomX; artSpr.material.opacity = boom * .9;
     skyU.glow.value = boom * 1.4; skyU.bd.value.set(boomX - cam.position.x, 4, -88 - cam.position.z).normalize();
@@ -482,7 +483,7 @@ async function start() {
       tmpL.copy(ptAt(s + 3.4)); tmpL.y = EYE + .12;
       const ending = Math.max(0, Math.min(1, (s - (S - 4.5)) / 4.5)); tmpL.lerp(screen.position, eio(ending));
       // boots: a step every 0.8 m, the head bobs and sways with it
-      phi += ds / .8 * Math.PI; const n = Math.floor(phi / Math.PI); if (n > stepN) { stepN = n; const sd = SND(); if (sd && ds > 0) sd.step(n % 2 === 0); }
+      phi += ds / .8 * Math.PI; const n = Math.floor(phi / Math.PI); if (n > stepN) { stepN = n; const sd = SND(); if (sd && ds > 0) sd.step(n % 2 === 0); if (window.__fxlog && ds > 0) window.__fxlog.push(['step', performance.now() / 1000, n % 2]); }
       const walking = Math.min(1, ds / Math.max(1e-4, dt) / VMAX) * (1 - ending * .8);
       right.subVectors(tmpL, P).cross(UP).normalize();
       cam.position.y += Math.abs(Math.sin(phi)) * .055 * walking - .02 * walking; cam.position.addScaledVector(right, Math.sin(phi) * .028 * walking);

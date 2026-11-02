@@ -11,7 +11,7 @@
   function syncSubs() {
     const add = [...want].filter(m => !subbed.has(m)), drop = [...subbed].filter(m => !want.has(m));
     if (drop.length) { send({ method: 'unsubscribeTokenTrade', keys: drop }); drop.forEach(m => subbed.delete(m)) }
-    if (add.length) { send({ method: 'subscribeTokenTrade', keys: add }); add.forEach(m => subbed.add(m)) }
+    if (add.length && window.TRENCH_PP_TRADES) { send({ method: 'subscribeTokenTrade', keys: add }); add.forEach(m => subbed.add(m)) }
   }
   function connect() {
     clearTimeout(timer); setState('connecting');

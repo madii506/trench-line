@@ -341,16 +341,18 @@
   let tradesT = 0;
   async function loadTrades() {
     clearTimeout(tradesT); const m = S.sel; if (!m) return;
-    try { const j = await api('trades?mint=' + m); if (S.sel === m && j.trades.length) { addTrades(j.trades.map(t => ({ ...t, sol: t.sol == null && S.sol && t.usd ? t.usd / S.sol : t.sol })), false); if (!S.candles.length && S.trades.length > 2) { S.candles = fromTrades(S.trades); $('#cmsg').textContent = ''; drawChart() } } } catch (_) { }
+    const first = !S.trades.length;
+    try { const j = await api('trades?mint=' + m); if (S.sel === m && j.trades.length) { const fresh = addTrades(j.trades.map(t => ({ ...t, sol: t.sol == null && S.sol && t.usd ? t.usd / S.sol : t.sol })), !first); if (!first && fresh.length) { const c = S.map.get(m); fresh.sort((a, b) => a.t - b.t).forEach(t => { if (t.price > 0) { if (c) { c.price = t.price; c.lastT = now() } liveTick(t.price, t.usd || 0) } }); dirtyHead(); } if (!S.candles.length && S.trades.length > 2) { S.candles = fromTrades(S.trades); $('#cmsg').textContent = ''; drawChart() } } } catch (_) { }
     const live = TS && TS.status().state === 'live';
-    if (S.sel === m) tradesT = setTimeout(loadTrades, live ? 30000 : 12000);
+    if (S.sel === m) tradesT = setTimeout(loadTrades, document.hidden ? 20000 : 6000);
   }
   function addTrades(list, fresh) {
-    let n = 0;
-    for (const t of list) { const k = t.sig || (t.t + ':' + t.wallet + ':' + t.sol); if (S.sigs.has(k)) continue; S.sigs.add(k); t._f = fresh; S.trades.push(t); n++ }
-    if (!n) return;
+    const added = [];
+    for (const t of list) { const k = t.sig || (t.t + ':' + t.wallet + ':' + t.sol); if (S.sigs.has(k)) continue; S.sigs.add(k); t._f = fresh; S.trades.push(t); added.push(t) }
+    if (!added.length) return added;
     S.trades.sort((a, b) => b.t - a.t); if (S.trades.length > 240) S.trades.length = 240;
     dirtyTrades(); dirtyInfo(); if (S.candles.length < 8) { $('#cmsg').textContent = ''; dirtyChart() }
+    return added;
   }
   const trows = new Map(); // keyed rows: existing rows are never rebuilt, only new trades slide in
   const tkey = t => t.sig || (t.t + ':' + t.wallet + ':' + t.sol);
@@ -404,7 +406,7 @@
     const step = TFS[S.tf] || 300, b = Math.floor(now() / 1000 / step) * step, cs = S.candles, last = cs[cs.length - 1];
     if (last && last[0] === b) { last[2] = Math.max(last[2], p); last[3] = Math.min(last[3], p); last[4] = p; last[5] += vol }
     else if (!last || b > last[0]) { const o = last ? last[4] : p; cs.push([b, o, Math.max(o, p), Math.min(o, p), p, vol]); if (cs.length > 200) cs.shift() }
-    S.liveAt = now(); const l = $('#clive'); if (!l.classList.contains('on')) { l.classList.add('on'); l.textContent = 'live · pump stream' }
+    S.liveAt = now(); const l = $('#clive'); if (!l.classList.contains('on')) { l.classList.add('on'); l.textContent = 'live' }
     $('#cmsg').textContent = ''; dirtyChart();
   }
   setInterval(() => { if (S.liveAt && now() - S.liveAt > 30000) { S.liveAt = 0; const l = $('#clive'); l.classList.remove('on'); l.textContent = '' } }, 3000);
