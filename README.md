@@ -17,9 +17,9 @@ own the trenches. a terminal for calls on live pump.fun coins, and a basket of t
 
 ## the intro and the score
 
-the intro is a three.js night battlefield (`assets/js/intro.js`): a gate with sound on/off, a crane shot into the trench, the walk across no man's land (searchlights, tracers, lightning, a near miss), down the far trench into a timber bunker (swinging lamp, dust, a map, bunks), the CRT login and the throw into the terminal. it plays once per browser session; `?nointro` skips it.
+the intro is a three.js night on the front (`assets/js/intro.js`): a gate with sound on/off, then a first-person walk down a zigzag trench (duckboards, sandbags, lanterns, shells bursting over the parapet, dirt raining in, searchlights and tracers overhead) to a bay at the end where the PC stands under a tin roof. you log in on its CRT and get thrown through the screen into the terminal. it plays once per browser session; `?nointro` skips it.
 
-the music ("line 7", `assets/js/score.js`) is synthesized live with Web Audio: a 3/4 waltz in A minor at 72 bpm (music box, harmonium, felt harp, upright bass) heard first through a field radio with rain and record crackle. the radio clears as you reach the dugout, the melody arrives as you land, and it fades out as you land inside the PC. it only starts after a click with sound on (the switch is in the corner of the intro).
+the sound (`assets/js/score.js`) is effects only, synthesized live with Web Audio: rain, the rumble of the front, blasts near and far, dirt falling, boots on duckboards. no music. it starts only after enter with sound on and fades out as you go into the PC.
 
 ## env (Vercel → project → settings → environment variables)
 

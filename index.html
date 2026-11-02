@@ -13,7 +13,7 @@
 <meta property="og:image" content="/assets/img/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="/assets/fonts/jetbrains-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/assets/css/trench.css?v=4">
+<link rel="stylesheet" href="/assets/css/trench.css?v=5">
 <script>try{if(sessionStorage.getItem('trench:intro')||matchMedia('(prefers-reduced-motion: reduce)').matches||/[?&]nointro/.test(location.search))document.documentElement.classList.remove('intro')}catch(e){}</script>
 </head>
 <body>
@@ -75,6 +75,7 @@
       <li class="rv"><b>03</b><h3>it rebalances against the market</h3><p>coins that fall off leave the basket. coins that run get trimmed back to their weight. every trade is onchain.</p></li>
       <li class="rv"><b>04</b><h3>you make the calls</h3><p>long or hedge any live coin over 15 minutes, 1 hour or 4 hours. real prices settle every call. points rank the board.</p></li>
     </ol>
+    <div class="pipe rv" id="pipe"><svg id="pipeSvg" viewBox="0 0 1200 250" preserveAspectRatio="xMidYMid meet" aria-label="how the money and the calls move"></svg></div>
   </div>
 </section>
 
@@ -82,6 +83,7 @@
   <div class="wrap">
     <div class="shead row"><div><div class="kick rv"><i></i>the basket</div><h2 class="ttl"><span class="split">the coins that earned it.</span></h2></div><p class="lede rv">scored live from real pump.fun data. momentum over 1h, 6h and 24h, weighted by organic volume. capped at 25% a coin.</p></div>
     <div class="vs rv" id="vs"></div>
+    <div class="tmap rv" id="tmap"><div class="empty">reading the market…</div></div>
     <div class="bk" id="bk"><div class="empty">reading the market…</div></div>
     <div class="gates rv" id="gates"></div>
     <div class="engine rv" id="engine"></div>
@@ -97,6 +99,10 @@
       <div class="rule rv"><b>points</b><p>a win is <em>100</em> plus 10 per 1% the coin moved your way, up to 500. a miss is <em>−50</em>. under 0.2% is a push.</p></div>
       <div class="rule rv"><b>settled by</b><p>the 1-minute candle at the closing time, from the coin's deepest pool. points only, no money changes hands.</p></div>
     </div>
+    <div class="calc rv"><div class="cin"><h4>try the scoring</h4><div class="seg side" id="cSide"><button type="button" data-side="long" class="on">long <i>↑</i></button><button type="button" data-side="hedge">hedge <i>↓</i></button><span class="sind"></span></div>
+      <label class="cslide"><span>the coin moves <b id="cMoveV">+6.0%</b></span><input type="range" id="cMove" min="-30" max="30" step="0.1" value="6"></label>
+      <div class="cpre"><button type="button" data-m="-12">−12%</button><button type="button" data-m="-0.1">flat</button><button type="button" data-m="3">+3%</button><button type="button" data-m="25">+25%</button><button type="button" data-m="80">+80%</button></div></div>
+      <div class="cview"><svg id="cChart" viewBox="0 0 420 160" preserveAspectRatio="none"></svg><div class="cres"><small>your call</small><b id="cRes">won</b><span id="cPts">+160 pts</span></div></div></div>
     <div class="feed"><h4 class="rv">latest calls on the line</h4><div id="feed" class="feedl"><div class="empty">no calls yet. be the first on the line.</div></div></div>
   </div>
 </section>
@@ -104,6 +110,7 @@
 <section class="sec board" id="board">
   <div class="wrap">
     <div class="shead row"><div><div class="kick rv"><i></i>the board</div><h2 class="ttl"><span class="split">who reads the trenches.</span></h2></div><div class="seg ptabs rv" id="ptabs"><button type="button" data-p="all" class="on">all time</button><button type="button" data-p="7d">7 days</button><button type="button" data-p="24h">24h</button><span class="sind"></span></div></div>
+    <div class="podium rv" id="podium"></div>
     <div class="lb" id="lb"><div class="empty">nobody on the board yet. make the first call.</div></div>
   </div>
 </section>
@@ -128,9 +135,9 @@
 </section>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="/assets/js/score.js?v=2"></script>
+<script src="/assets/js/score.js?v=3"></script>
 <script src="/assets/js/stream.js?v=3"></script>
-<script src="/assets/js/app.js?v=4"></script>
-<script type="module" src="/assets/js/intro.js?v=3"></script>
+<script src="/assets/js/app.js?v=5"></script>
+<script type="module" src="/assets/js/intro.js?v=4"></script>
 </body>
 </html>
