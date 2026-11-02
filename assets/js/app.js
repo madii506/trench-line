@@ -94,12 +94,15 @@
   function paintMarket(ok, msg) { const el = $('#stJup'); el.className = 'tchip' + (ok ? ' live' : ' bad'); el.innerHTML = '<i></i>' + esc(msg); }
   function paintSol() { $('#stSol').textContent = S.sol ? 'SOL $' + S.sol.toFixed(2) : 'SOL —' }
 
+  // SOL/USD straight from Jupiter when the server could not get it (used to price stream coins)
+  let solAt = 0;
+  async function solDirect() { solAt = now(); try { const j = await fetch('https://lite-api.jup.ag/price/v3?ids=So11111111111111111111111111111111111111112').then(r => r.json()); const v = j && j['So11111111111111111111111111111111111111112'] && +j['So11111111111111111111111111111111111111112'].usdPrice; if (v > 0) { S.sol = v; paintSol(); for (const c of S.map.values()) { if (c.mcapSol && !c.mcap) c.mcap = c.mcapSol * v; if (c.priceSol && !c.price) c.price = c.priceSol * v } dirtyList() } } catch (_) { } }
   /* ---------- the line: trending, gainers, losers (Jupiter) ---------- */
   async function loadTop() {
     const sort = ['trending', 'gainers', 'losers'].includes(S.sort) ? S.sort : 'trending';
     try {
       const j = await api('coins?sort=' + sort);
-      if (j.sol) { S.sol = j.sol; paintSol() }
+      if (j.sol) { S.sol = j.sol; paintSol() } else if (!S.sol || now() - solAt > 60000) solDirect();
       const list = j.coins.map(merge);
       if (sort === 'trending') { S.top = list; renderTape() }
       if (S.sort === sort) { S.list = list; paintList() }
