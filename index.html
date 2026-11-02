@@ -6,25 +6,25 @@
 <title>.trench</title>
 <meta name="description" content="own the trenches. calls on live pump.fun coins, and a basket of the top performers that the creator fees buy.">
 <meta name="theme-color" content="#08180f">
-<link rel="icon" type="image/png" href="/assets/img/fav-32.png">
+<link rel="icon" type="image/png" href="/assets/img/fav-32.png?v=2">
 <link rel="apple-touch-icon" href="/assets/img/fav-180.png">
 <meta property="og:title" content=".trench">
 <meta property="og:description" content="own the trenches. calls on live pump.fun coins, and a basket of the top performers.">
 <meta property="og:image" content="/assets/img/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="/assets/fonts/jetbrains-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/assets/css/trench.css?v=3">
+<link rel="stylesheet" href="/assets/css/trench.css?v=4">
 <script>try{if(sessionStorage.getItem('trench:intro')||matchMedia('(prefers-reduced-motion: reduce)').matches||/[?&]nointro/.test(location.search))document.documentElement.classList.remove('intro')}catch(e){}</script>
 </head>
 <body>
-<div id="intro" role="dialog" aria-label=".trench intro"><div class="ivig"></div><i class="ilb t"></i><i class="ilb b"></i><div class="icap" id="introCap"><span>03:14</span> · no man's land · line 7</div><div class="isub" id="introSub" aria-live="polite"></div>
-  <div class="igate" id="introGate"><div class="gin"><div class="gtop">line 7 · 03:14 · solana mainnet</div><div class="gmark"><i>.</i>trench</div><p class="gline">own the trenches.</p><button id="introGo" class="ggo" type="button"><span>enter the trenches</span><b>›</b></button><button id="introSnd" class="gsnd on" type="button" aria-pressed="true"><i class="eq"><b></b><b></b><b></b><b></b></i><span>sound on</span></button><div class="gnote">a calm score, made live in your browser</div></div></div>
-  <button id="introSkip" type="button">skip intro ›</button><div class="iflash"></div></div>
+<div id="intro" role="dialog" aria-label=".trench intro"><div class="ivig"></div>
+  <div class="igate" id="introGate"><div class="gin"><div class="gmark"><i>.</i>trench</div><p class="gline">own the trenches.</p><button id="introGo" class="ggo" type="button"><span>enter the trenches</span><b>›</b></button></div></div>
+  <button id="introSnd" class="gsnd on" type="button" aria-pressed="true"><i class="eq"><b></b><b></b><b></b><b></b></i><span>sound on</span></button><button id="introSkip" type="button">skip intro ›</button><div class="iflash"></div></div>
 <canvas id="bgfx" aria-hidden="true"></canvas>
 <header class="nav" id="nav">
   <a class="logo" href="#top" aria-label=".trench, to the terminal"><i>.</i>trench</a>
   <nav class="pill" aria-label="sections"><span class="ind" id="navInd"></span><a href="#line">terminal</a><a href="#how">how</a><a href="#basket">basket</a><a href="#calls">calls</a><a href="#board">board</a><a href="#faq">faq</a></nav>
-  <div class="nr"><a class="xl" id="xBtn" hidden target="_blank" rel="noopener" aria-label="X">𝕏</a><button class="capill" id="caPill" type="button" hidden><span>$TRENCH</span><code id="caTxt"></code></button><button class="snd" id="sndBtn" type="button" aria-pressed="false" title="sound"><i class="eq"><b></b><b></b><b></b><b></b></i></button><span class="me" title="your callsign"><i></i><b id="meName">anon</b></span></div>
+  <div class="nr"><a class="xl" id="xBtn" hidden target="_blank" rel="noopener" aria-label="X">𝕏</a><button class="capill" id="caPill" type="button" hidden><span>$TRENCH</span><code id="caTxt"></code></button><div class="wal" id="wal"><button class="wbtn2" id="walletBtn" type="button" aria-haspopup="true" aria-expanded="false"><i></i><span>connect wallet</span></button><div class="wmenu" id="wmenu" hidden></div></div></div>
   <i class="prog" id="prog"></i>
 </header>
 <main id="site">
@@ -36,7 +36,7 @@
       <span class="tclk" id="tClk"></span></div>
     <div class="tgrid">
       <aside class="tl">
-        <div class="tabs" id="sortTabs"><button type="button" data-s="live" class="on" title="new pump.fun launches, live">live<em id="liveN"></em></button><button type="button" data-s="trending">trending</button><button type="button" data-s="gainers">gainers</button><button type="button" data-s="losers">losers</button><button type="button" data-s="watch" title="your watchlist">★</button></div>
+        <div class="tabs" id="sortTabs"><button type="button" data-s="live" class="on" title="new pump.fun launches, live">new<em id="liveN"></em></button><button type="button" data-s="stretch" title="bonding curve 50% or more, still trading">stretch<sup id="strN"></sup></button><button type="button" data-s="grad" title="graduated to PumpSwap">graduated<sup id="gradN"></sup></button></div><div class="tabs t2" id="sortTabs2"><button type="button" data-s="trending">trending</button><button type="button" data-s="gainers">gainers</button><button type="button" data-s="losers">losers</button><button type="button" data-s="watch" title="your watchlist">★ watch</button></div>
         <label class="tsearch"><span>/</span><input id="q" placeholder="find $ticker or paste a mint" autocomplete="off" spellcheck="false"></label>
         <button type="button" class="lpause" id="lpause" hidden></button><div class="clist" id="clist" tabindex="0"><div class="empty">connecting to pump.fun…</div></div>
       </aside>
@@ -51,8 +51,9 @@
         <div class="cnote" id="cnote">points only, no money. the entry locks at the live price when you call it.</div>
       </section>
       <aside class="tr">
-        <div class="seg rtabs" id="rtabs"><button type="button" data-r="trades" class="on">trades</button><button type="button" data-r="calls">calls<em id="myN"></em></button><button type="button" data-r="board">board</button><button type="button" data-r="basket">basket</button><span class="sind"></span></div>
-        <div class="rp on" data-r="trades"><div class="thead"><span>time</span><span>side</span><span>SOL</span><span>usd</span><span>wallet</span></div><div class="trades" id="trades"><div class="empty">trades on this coin stream in here.</div></div></div>
+        <div class="seg rtabs" id="rtabs"><button type="button" data-r="trades" class="on">trades</button><button type="button" data-r="info">info</button><button type="button" data-r="calls">calls<em id="myN"></em></button><button type="button" data-r="board">board</button><button type="button" data-r="basket">basket</button><span class="sind"></span></div>
+        <div class="rp on" data-r="trades"><div class="flow" id="flow"></div><div class="thead"><span>time</span><span>side</span><span>SOL</span><span>usd</span><span>wallet</span></div><div class="trades" id="trades"><div class="empty">trades on this coin stream in here.</div></div></div>
+        <div class="rp" data-r="info"><div class="info" id="info"><div class="empty">pick a coin.</div></div></div>
         <div class="rp" data-r="calls"><div class="mysum" id="myPts"></div><div class="mycalls" id="mycalls"><div class="empty">no calls yet. pick a coin, long or hedge it.</div></div></div>
         <div class="rp" data-r="board"><div class="mini" id="miniBoard"><div class="empty">nobody on the board yet.</div></div><a class="more" href="#board">the full board ›</a></div>
         <div class="rp" data-r="basket"><div class="mini" id="miniBasket"><div class="empty">reading the market…</div></div><a class="more" href="#basket">why these coins ›</a></div>
@@ -127,9 +128,9 @@
 </section>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="/assets/js/score.js?v=1"></script>
-<script src="/assets/js/stream.js?v=2"></script>
-<script src="/assets/js/app.js?v=3"></script>
-<script type="module" src="/assets/js/intro.js?v=2"></script>
+<script src="/assets/js/score.js?v=2"></script>
+<script src="/assets/js/stream.js?v=3"></script>
+<script src="/assets/js/app.js?v=4"></script>
+<script type="module" src="/assets/js/intro.js?v=3"></script>
 </body>
 </html>
