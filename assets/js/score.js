@@ -40,8 +40,8 @@
     muf = ctx.createBiquadFilter(); muf.type = 'lowpass'; muf.frequency.value = 16000; muf.Q.value = .5;
     master.connect(comp); comp.connect(lim); lim.connect(ctx.destination); muf.connect(master);
     // the radio: band-limited with a honky mid peak, opening up to full range
-    music = ctx.createGain(); music.gain.value = 1.7; hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 340; lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; lp.Q.value = .9;
-    peak = ctx.createBiquadFilter(); peak.type = 'peaking'; peak.frequency.value = 1100; peak.Q.value = 1.1; peak.gain.value = 5;
+    music = ctx.createGain(); music.gain.value = 2.7; hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 190; lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.Q.value = .8;
+    peak = ctx.createBiquadFilter(); peak.type = 'peaking'; peak.frequency.value = 1100; peak.Q.value = 1.1; peak.gain.value = 3;
     music.connect(hp); hp.connect(peak); peak.connect(lp); lp.connect(muf);
     // a small dark room
     rev = ctx.createConvolver(); const n = ctx.sampleRate * 3.2 | 0, ir = ctx.createBuffer(2, n, ctx.sampleRate);
@@ -90,10 +90,10 @@
     const bar = Math.floor(b / 3) + startBar, inBar = b % 3, loop = Math.floor(bar / 16), sbar = bar % 16, blk = CH[sbar >> 1], second = sbar & 1;
     const hum = () => (Math.random() - .5) * .012;
     if (inBar === 0 && !second) pad(t, blk[1], SPB * 6, .013);
-    if (bar >= 2 && inBar === 0) bass(t + hum(), second ? blk[0] + 7 : blk[0], .11);
-    if (bar >= 4) { const h = blk[2]; if (inBar === 1) harp(t + hum(), h[second ? 2 : 1], .05); if (inBar === 2) harp(t + hum(), h[second ? 3 : 2], .042); if (inBar === 0 && second) harp(t + hum(), h[0], .035) }
+    if (bar >= 1 && inBar === 0) bass(t + hum(), second ? blk[0] + 7 : blk[0], .11);
+    if (bar >= 0) { const h = blk[2]; if (inBar === 1) harp(t + hum(), h[second ? 2 : 1], .05); if (inBar === 2) harp(t + hum(), h[second ? 3 : 2], .042); if (inBar === 0 && second) harp(t + hum(), h[0], .035) }
     const mode = [0, 1, 2, 3][loop % 4]; // music box · box with octave sparkle · low felt piano · a breath with no tune
-    if (bar >= 8 && mode !== 3) {
+    if (mode !== 3) {
       const sb = (sbar * 3 + inBar);
       for (const [at, m, d] of MEL) if (at >= sb && at < sb + 1) {
         const tt = t + (at - sb) * SPB + hum();
@@ -107,12 +107,19 @@
     while (nextT < ahead) { playBeat(beat, nextT); beat++; nextT += SPB }
     while (crackT < ahead) { crackle(crackT); crackT += (.05 + Math.random()) / crackleRate }
   }
+  // iOS plays Web Audio through the ringer channel unless a media element is playing; a silent loop switches it to playback
+  let tag = null;
+  function unlock() {
+    try { if (!tag) { tag = new Audio('data:audio/wav;base64,UklGRvQHAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YdAHAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA=='); tag.loop = true; tag.setAttribute('playsinline', ''); tag.volume = 0.01 } const p = tag.play(); if (p && p.catch) p.catch(() => { }); } catch (_) { }
+  }
+  ['pointerdown', 'keydown', 'touchend'].forEach(ev => addEventListener(ev, () => { if (ctx && api.on && ctx.state !== 'running') { ctx.resume(); unlock() } }, { passive: true }));
   const api = {
     ok: !!AC, on: false, started: false, pref,
     start(mode) { // call from a click
       if (!AC) return false;
       if (!ctx) build();
       if (ctx.state !== 'running') ctx.resume();
+      unlock();
       if (!api.started) {
         api.started = true; startBar = mode === 'site' ? 16 : 0; beat = 0; nextT = ctx.currentTime + .15; crackT = nextT;
         if (mode === 'site') { api.radio(1, .1); rainG.gain.value = 0; crackleRate = 2 } else { rainG.gain.setTargetAtTime(.05, ctx.currentTime, 1.2) }
@@ -126,7 +133,7 @@
       emit();
     },
     toggle() { if (!api.started) return api.start('site'); api.set(!api.on) },
-    radio(k, sec) { if (!ctx) return; const t = ctx.currentTime, s = sec == null ? 2.5 : sec; hp.frequency.setTargetAtTime(340 * (1 - k) + 22 * k, t, s / 3); lp.frequency.setTargetAtTime(1500 * Math.pow(10, k), t, s / 3); peak.gain.setTargetAtTime(5 * (1 - k), t, s / 3) },
+    radio(k, sec) { if (!ctx) return; const t = ctx.currentTime, s = sec == null ? 2.5 : sec; hp.frequency.setTargetAtTime(190 * (1 - k) + 22 * k, t, s / 3); lp.frequency.setTargetAtTime(2600 * Math.pow(5.8, k), t, s / 3); peak.gain.setTargetAtTime(3 * (1 - k), t, s / 3) },
     muffle(sec) { if (!ctx) return; const t = ctx.currentTime; muf.frequency.cancelScheduledValues(t); muf.frequency.setTargetAtTime(280, t, .03); muf.frequency.setTargetAtTime(16000, t + (sec || 1.6), .7);
       const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 3600; g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(.01, t + .1); g.gain.exponentialRampToValueAtTime(.0001, t + 2.6); o.connect(g); g.connect(master); o.start(t); o.stop(t + 2.7) },
     boom(near, delay) { // near: 0 far away … 1 right next to you
@@ -142,6 +149,11 @@
       g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.32, t + .8); g.gain.exponentialRampToValueAtTime(.0001, t + 1.5); s.connect(f); f.connect(g); g.connect(sfx); s.start(t, 0, 1.6);
       const o = ctx.createOscillator(), og = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(1320, t + .9); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(.05, t + .7); og.gain.exponentialRampToValueAtTime(.0001, t + 1.4); o.connect(og); og.connect(sfx); o.start(t); o.stop(t + 1.5);
       box(t + .92, 93, .07); box(t + .93, 88, .05);
+    },
+    stop(sec) { // the music belongs to the trenches: it fades out as you land inside the PC
+      if (!ctx) return; const t = ctx.currentTime, d = sec || 2.6; api.on = false; emit();
+      master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value, t); master.gain.linearRampToValueAtTime(0, t + d);
+      setTimeout(() => { clearInterval(timer); api.started = false; try { tag && tag.pause() } catch (_) { } try { ctx.suspend() } catch (_) { } }, d * 1000 + 300);
     },
     site() { // after the intro: the radio is clear, the rain fades, the waltz stays quiet under the terminal
       if (!ctx) return; const t = ctx.currentTime; api.radio(1, 1.2); rainG.gain.setTargetAtTime(0, t, 2); crackleRate = 2; vol = .6;

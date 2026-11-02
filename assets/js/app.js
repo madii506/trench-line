@@ -36,10 +36,10 @@
   const throttle = (fn, ms) => { let t = 0; return () => { if (t) return; t = setTimeout(() => { t = 0; fn() }, ms) } };
 
   /* ---------- who you are ---------- */
-  let uid = null, callsign = 'anon';
-  try { uid = localStorage.getItem('trench:uid'); callsign = localStorage.getItem('trench:callsign') || 'anon' } catch (_) { }
-  if (!/^[a-f0-9]{32}$/.test(uid || '')) { const b = new Uint8Array(16); crypto.getRandomValues(b); uid = Array.from(b, x => x.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('trench:uid', uid) } catch (_) { } }
-  function setName(n) { callsign = String(n || 'anon').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 12) || 'anon'; try { localStorage.setItem('trench:callsign', callsign) } catch (_) { } $('#meName').textContent = callsign; $('#psName').textContent = callsign; }
+  let uid = '', callsign = 'anon', WAL = null; // WAL = {wallet, token, uid, name} once a wallet has signed in
+  try { callsign = localStorage.getItem('trench:callsign') || 'anon'; WAL = JSON.parse(localStorage.getItem('trench:wallet') || 'null') } catch (_) { }
+  if (!WAL || !WAL.wallet || !WAL.token || !/^[a-f0-9]{32}$/.test(WAL.uid || '')) WAL = null; else uid = WAL.uid;
+  function setName(n) { callsign = String(n || 'anon').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 12) || 'anon'; try { localStorage.setItem('trench:callsign', callsign) } catch (_) { } $('#psName').textContent = callsign; }
   setName(callsign);
   addEventListener('trench:callsign', e => setName(e.detail));
 
@@ -129,7 +129,7 @@
     freshAt = now();
     try {
       const j = await api('fresh');
-      const cs = j.coins.filter(c => c.mint && !BLOCK.test(c.name + ' ' + c.sym)).map(c => { const o = merge({ ...c, created: tms(c) || null }); o.priced = o.priced || c.price > 0; return o });
+      const cs = j.coins.filter(c => c.mint && !BLOCK.test(c.name + ' ' + c.sym)).map(c => { const o = merge({ ...c, created: tms(c) || null }); o.priced = o.priced || c.price > 0; if (c.grad && !o.gradAt) o.gradAt = tms(c); return o });
       pushLive(cs.filter(c => c.created && now() - tms(c) < 6 * 3600e3));
       if (S.sort === 'live') dirtyList();
       if (!S.sel && S.live.length) setTimeout(() => { if (!S.sel && S.live[0]) select(S.live[0], true) }, 3000);
@@ -148,8 +148,9 @@
     });
     TS.on('trade', onTrade);
     TS.on('migrate', d => {
-      const c = S.map.get(d.mint); if (!c) return;
-      c.pool = 'pump-amm'; c.curve = 100; c.migrated = true; dirtyList();
+      if (!d.mint) return; const c = S.map.get(d.mint) || merge({ mint: d.mint });
+      c.pool = 'pump-amm'; c.curve = 100; c.migrated = true; c.gradAt = now(); dirtyList(); enrichMany([d.mint]);
+      if (!c.sym) return;
       cliOut('$' + (c.sym || short(d.mint)) + ' just graduated to PumpSwap', 'g');
       if (d.mint === S.sel) renderHead();
     });
@@ -172,7 +173,7 @@
     }
   }
   // TS watches the open coin, your watchlist and the newest launches
-  const syncWatch = throttle(() => { if (TS) TS.watch([S.sel, ...W.map(w => w.mint), ...S.live.slice(0, 24)]) }, 1200);
+  const syncWatch = throttle(() => { if (TS) TS.watch([S.sel, ...W.map(w => w.mint).slice(0, 8), ...stretch().slice(0, 8).map(c => c.mint), ...S.live.slice(0, 24)]) }, 1200);
 
   // images for stream coins: the coin's own metadata json (its uri)
   const metaQ = [], metaTried = new Set(); let metaRun = 0;
@@ -198,8 +199,14 @@
 
   /* ---------- painting the list (keyed, so clicks never land on a replaced row) ---------- */
   const rows = new Map(); const born = new Set(); let paintedSort = null;
+  const curveOfC = c => c.curve != null ? c.curve : c.bonding != null ? c.bonding : null;
+  const isGrad = c => c.migrated || c.pool === 'pump-amm' || c.grad;
+  function stretch() { return [...S.map.values()].filter(c => { const v = curveOfC(c); return v != null && v >= 50 && v < 100 && !isGrad(c) && now() - (c.lastT || tms(c) || 0) < 20 * 60e3 }).sort((a, b) => curveOfC(b) - curveOfC(a)).slice(0, 60) }
+  function grads() { return [...S.map.values()].filter(c => isGrad(c) && (c.gradAt || tms(c)) && now() - (c.gradAt || tms(c)) < 12 * 3600e3).sort((a, b) => (b.gradAt || tms(b)) - (a.gradAt || tms(a))).slice(0, 60) }
   function current() {
     if (S.sort === 'live') return S.live.map(m => S.map.get(m)).filter(Boolean);
+    if (S.sort === 'stretch') return stretch();
+    if (S.sort === 'grad') return grads();
     if (S.sort === 'watch') return W.map(w => S.map.get(w.mint) || w);
     return S.list;
   }
@@ -207,9 +214,9 @@
   function rowHTML(c) {
     const star = c.inBasket ? '<span class="star" title="in the basket">★</span>' : '';
     const amm = c.pool === 'pump-amm' || c.migrated ? '<span class="badge" title="graduated to PumpSwap">amm</span>' : '';
-    const fresh = S.sort === 'live' || (!c.priced && c.created);
+    const fresh = S.sort === 'live' || S.sort === 'stretch' || S.sort === 'grad' || (!c.priced && c.created);
     if (fresh) {
-      const t = tms(c);
+      const t = S.sort === 'grad' && c.gradAt ? c.gradAt : tms(c);
       return `${av(c)}<span class="nm"><b>$${esc(c.sym || '?')}${star}${amm}</b><small>${esc(c.name || '')}${t ? ' · <span class="age" data-t="' + t + '"></span>' : ''}${c.devSol ? ' · dev ' + solx(c.devSol) : ''}</small></span><span class="px">${mc(c) ? usd(mc(c)) : '—'}<small>${c.curve != null && !amm ? 'curve ' + c.curve.toFixed(0) + '%' : c.ch5m ? '<i class="' + cls(c.ch5m) + '">' + pct(c.ch5m) + ' 5m</i>' : c.buys || c.sells ? c.buys + 'b ' + c.sells + 's' : ''}</small></span>${c.curve != null && !amm ? '<span class="cvb"><i style="width:' + c.curve.toFixed(1) + '%"></i></span>' : ''}`;
     }
     return `${av(c)}<span class="nm"><b>$${esc(c.sym || '?')}${star}${amm}</b><small>${esc(c.name || '')} · ${usd(mc(c))}</small></span><span class="px">$${fp(px(c))}<small class="${cls(c.ch1h)}">${pct(c.ch1h)} 1h</small></span>`;
@@ -255,16 +262,18 @@
 
   $('#clist').addEventListener('click', e => { const b = e.target.closest('.cr'); if (b) select(b.dataset.m) });
   let frozen = false;
-  $('#clist').addEventListener('pointerenter', e => { if (e.pointerType === 'mouse' && S.sort === 'live') frozen = true });
+  $('#clist').addEventListener('pointerenter', e => { if (e.pointerType === 'mouse' && ['live', 'stretch', 'grad'].includes(S.sort)) frozen = true });
   $('#clist').addEventListener('pointerleave', () => { if (frozen) { frozen = false; paintList() } });
   $('#lpause').addEventListener('click', () => { frozen = false; paintList(); $('#clist').scrollTop = 0 });
   function setSort(s) {
-    S.sort = s; frozen = false; $$('#sortTabs button').forEach(x => x.classList.toggle('on', x.dataset.s === s));
+    S.sort = s; frozen = false; $$('.tl .tabs button').forEach(x => x.classList.toggle('on', x.dataset.s === s));
     if (s === 'live') { paintList(true); if (now() - freshAt > 8000) loadFresh() }
+    else if (s === 'stretch' || s === 'grad') { paintList(true); enrichMany(current().map(c => c.mint)) }
     else if (s === 'watch') { paintList(true); enrichMany(W.map(w => w.mint)) }
     else { S.list = []; paintList(true); $('#clist').innerHTML = '<div class="empty">loading the line…</div>'; loadTop() }
   }
-  $('#sortTabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setSort(b.dataset.s) });
+  $$('.tl .tabs').forEach(t => t.addEventListener('click', e => { const b = e.target.closest('button'); if (b) setSort(b.dataset.s) }));
+  setInterval(() => { const a = stretch().length, b = grads().length; $('#strN').textContent = a || ''; $('#gradN').textContent = b || ''; if (S.sort === 'stretch' || S.sort === 'grad') dirtyList() }, 2000);
   $('#q').addEventListener('input', e => { S.q = e.target.value.trim(); paintList(); if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(S.q)) openMint(S.q) });
   $('#q').addEventListener('keydown', e => { if (e.key === 'Enter') { const f = filtered()[0]; if (f) { select(f.mint); e.target.blur() } } });
   function openMint(m) { merge({ mint: m }); select(m) }
@@ -275,7 +284,7 @@
     if (!mint) return; const changed = S.sel !== mint; S.sel = mint; const c = S.map.get(mint);
     for (const [m, el] of rows) el.classList.toggle('on', m === mint);
     renderHead(); upCall();
-    if (changed) { S.trades = []; S.sigs = new Set(); trows.clear(); $('#trades').innerHTML = ''; paintTrades(); S.candles = []; S.liveAt = 0; const young = c && tms(c) && now() - tms(c) < 3 * 3600e3; if (young && S.tf !== '1m') setTf('1m', true); loadChart(); loadTrades(); syncWatch() }
+    if (changed) { S.trades = []; S.sigs = new Set(); trows.clear(); $('#trades').innerHTML = ''; paintTrades(); $('#flow').innerHTML = ''; renderInfo(); S.candles = []; S.liveAt = 0; const young = c && tms(c) && now() - tms(c) < 3 * 3600e3; if (young && S.tf !== '1m') setTf('1m', true); loadChart(); loadTrades(); syncWatch() }
     enrich(mint);
     if (c) wantMeta(c);
     if (!quiet) cliOut('opened $' + (c && c.sym ? c.sym : short(mint)), 'g');
@@ -338,7 +347,7 @@
     for (const t of list) { const k = t.sig || (t.t + ':' + t.wallet + ':' + t.sol); if (S.sigs.has(k)) continue; S.sigs.add(k); t._f = fresh; S.trades.push(t); n++ }
     if (!n) return;
     S.trades.sort((a, b) => b.t - a.t); if (S.trades.length > 240) S.trades.length = 240;
-    dirtyTrades(); if (S.candles.length < 8) { $('#cmsg').textContent = ''; dirtyChart() }
+    dirtyTrades(); dirtyInfo(); if (S.candles.length < 8) { $('#cmsg').textContent = ''; dirtyChart() }
   }
   const trows = new Map(); // keyed rows: existing rows are never rebuilt, only new trades slide in
   const tkey = t => t.sig || (t.t + ':' + t.wallet + ':' + t.sol);
@@ -468,16 +477,17 @@
     go.classList.toggle('hedge', S.side === 'hedge');
     go.querySelector('span').textContent = c ? (S.side === 'long' ? 'long' : 'hedge') + ' $' + (c.sym || short(c.mint)) + ' · ' + wl(S.win) : 'call it';
     const unpriced = c && c.priced === false;
-    go.disabled = !c || S.cfg.ready === false || unpriced;
+    if (!WAL) { go.querySelector('span').textContent = 'connect wallet to call'; go.disabled = S.cfg.ready === false }
+    else go.disabled = !c || S.cfg.ready === false || unpriced;
     const note = $('#cnote');
-    if (!note.classList.contains('ok') && !note.classList.contains('err')) note.textContent = S.cfg.ready === false ? 'calls open once the database is switched on.' : unpriced ? 'this coin has no price feed yet, so calls on it open in a minute or two. its trades still stream in live.' : 'points only, no money. the entry locks at the live price when you call it.';
+    if (!note.classList.contains('ok') && !note.classList.contains('err')) note.textContent = S.cfg.ready === false ? 'calls open once the database is switched on.' : !WAL ? 'connect a wallet to make calls. signing in is free: no transaction, no fees.' : unpriced ? 'this coin has no price feed yet, so calls on it open in a minute or two. its trades still stream in live.' : 'points only, no money. the entry locks at the live price when you call it.';
   }
-  $('#callGo').addEventListener('click', () => makeCall(S.sel, S.side, S.win));
+  $('#callGo').addEventListener('click', () => { if (!WAL) return openWallets(); makeCall(S.sel, S.side, S.win) });
   async function makeCall(mint, side, win) {
-    const note = $('#cnote'), go = $('#callGo'); if (!mint || go.disabled && !arguments[3]) return;
+    const note = $('#cnote'), go = $('#callGo'); if (!WAL) { openWallets(); cliOut('connect your wallet to make calls', 'e'); return } if (!mint || go.disabled && !arguments[3]) return;
     go.disabled = true; note.className = 'cnote'; note.textContent = 'locking the entry at the live price…';
     try {
-      const { call } = await api('call', { uid, callsign, mint, side, win });
+      const { call } = await api('call', { wallet: WAL.wallet, token: WAL.token, callsign, mint, side, win });
       S.mine.unshift(call); renderMine(); drawChart(); loadBoard(); loadFeed();
       const msg = side + ' $' + call.sym + ' for ' + wl(win) + ' at $' + fp(call.entry);
       note.className = 'cnote ok'; note.textContent = 'called: ' + msg + '. settles at ' + new Date(call.endsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '.';
@@ -489,18 +499,18 @@
   }
 
   /* ---------- right side: trades · calls · board · basket ---------- */
-  function setR(r) { $$('#rtabs button').forEach(x => x.classList.toggle('on', x.dataset.r === r)); $$('.tr .rp').forEach(p => p.classList.toggle('on', p.dataset.r === r)); segInd($('#rtabs')) }
+  function setR(r) { $$('#rtabs button').forEach(x => x.classList.toggle('on', x.dataset.r === r)); $$('.tr .rp').forEach(p => p.classList.toggle('on', p.dataset.r === r)); segInd($('#rtabs')); if (r === 'info') renderInfo() }
   $('#rtabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setR(b.dataset.r) });
 
   /* ---------- your calls ---------- */
-  async function loadMine() { try { const j = await api('calls?uid=' + uid); S.mine = j.calls; renderMine(); drawChart() } catch (_) { } }
+  async function loadMine() { if (!uid) { S.mine = []; renderMine(); return } try { const j = await api('calls?uid=' + uid); S.mine = j.calls; renderMine(); drawChart() } catch (_) { } }
   function liveMove(c) { const p = px(S.map.get(c.mint)); if (!p || c.result) return null; return (p - c.entry) / c.entry }
   function renderMine() {
     const box = $('#mycalls'); const pts = S.mine.reduce((s, c) => s + (c.points || 0), 0), open = S.mine.filter(c => !c.result).length;
     $('#myN').textContent = open ? String(open) : '';
     const won = S.mine.filter(c => c.result === 'won').length, lost = S.mine.filter(c => c.result === 'lost').length;
     $('#myPts').innerHTML = S.mine.length ? `<b>${pts} pts</b> · ${won}W ${lost}L · ${open} open` : '';
-    if (!S.mine.length) { box.innerHTML = '<div class="empty">no calls yet. pick a coin, long or hedge it.</div>'; return }
+    if (!S.mine.length) { box.innerHTML = '<div class="empty">' + (WAL ? 'no calls yet. pick a coin, long or hedge it.' : 'connect your wallet to make calls. signing in is free: no transaction, no fees.') + '</div>'; return }
     box.innerHTML = S.mine.slice(0, 16).map(c => {
       const op = !c.result, m = op ? liveMove(c) : c.move, good = m == null ? null : (c.side === 'long' ? m > 0 : m < 0);
       const left = c.endsAt - now(), frac = Math.min(1, Math.max(0, 1 - left / (c.win * 60e3)));
@@ -526,7 +536,7 @@
   async function loadBoard() {
     try {
       const j = await api('board?p=' + P); S.board = j.board;
-      const row = r => `<div class="lbr${r.rank === 1 ? ' top1' : ''}${r.tag === uid.slice(-4) && r.callsign === callsign ? ' me' : ''}"><span class="rk">#${r.rank}</span><span><b>${esc(r.callsign)}</b> <small style="color:var(--mut2)">#${esc(r.tag)}</small></span><span class="pts">${r.points} pts</span><span>${r.won}W · ${r.lost}L</span><span class="hide">${r.open} open</span><span class="hide">${r.best == null ? '—' : '+' + r.best + '%'}</span></div>`;
+      const row = r => `<div class="lbr${r.rank === 1 ? ' top1' : ''}${uid && r.tag === uid.slice(-4) && r.callsign === callsign ? ' me' : ''}"><span class="rk">#${r.rank}</span><span><b>${esc(r.callsign)}</b> <small style="color:var(--mut2)">#${esc(r.tag)}</small></span><span class="pts">${r.points} pts</span><span>${r.won}W · ${r.lost}L</span><span class="hide">${r.open} open</span><span class="hide">${r.best == null ? '—' : '+' + r.best + '%'}</span></div>`;
       $('#lb').innerHTML = j.board.length ? '<div class="lbr h"><span>rank</span><span>callsign</span><span>points</span><span>record</span><span class="hide">open</span><span class="hide">best call</span></div>' + j.board.map(row).join('') : '<div class="empty" style="padding:22px">nobody on the board yet. make the first call.</div>';
       $('#miniBoard').innerHTML = j.board.length ? j.board.slice(0, 10).map(r => `<div class="row"><em>#${r.rank}</em><span>${esc(r.callsign)}</span><span class="up">${r.points}</span></div>`).join('') : '<div class="empty">nobody on the board yet.</div>';
     } catch (e) { const m = /database/.test(e.message) ? 'the board opens once the database is switched on.' : e.message; $('#lb').innerHTML = '<div class="empty" style="padding:22px">' + esc(m) + '</div>'; $('#miniBoard').innerHTML = '<div class="empty">' + esc(m) + '</div>' }
@@ -618,7 +628,9 @@
     if (k === 'board') { if (!S.board.length) return cliOut('nobody on the board yet'); return S.board.slice(0, 10).forEach(r => cliOut(`#${String(r.rank).padEnd(3)} ${r.callsign.padEnd(13)} ${String(r.points).padStart(6)} pts   ${r.won}W ${r.lost}L`)) }
     if (k === 'calls') { setR('calls'); if (!S.mine.length) return cliOut('no calls yet'); return S.mine.slice(0, 10).forEach(c => cliOut(`$${c.sym.padEnd(10)} ${c.side.padEnd(6)} ${String(c.win).padStart(3)}m  entry $${fp(c.entry)}  ${c.result ? c.result + ' ' + c.points + ' pts' : 'settles in ' + mmss(c.endsAt - now())}`)) }
     if (k === 'callsign' || k === 'login') { if (!a[0]) return cliOut('callsign: ' + callsign); setName(a[0]); return cliOut('callsign set: ' + callsign, 'g') }
-    if (k === 'whoami') return cliOut(callsign + ' #' + uid.slice(-4));
+    if (k === 'whoami') return cliOut(callsign + (WAL ? ' · ' + WAL.wallet : ' · no wallet connected'));
+    if (k === 'connect' || k === 'wallet') { if (WAL) return cliOut('connected: ' + WAL.wallet, 'g'); openWallets(); return }
+    if (k === 'disconnect') { disconnect(); return cliOut('wallet disconnected') }
     cliOut('unknown command "' + cmd + '". type help', 'e');
   }
   const hist = []; let hi = -1;
@@ -636,7 +648,7 @@
     let i = list.findIndex(c => c.mint === S.sel); i = i < 0 ? 0 : Math.max(0, Math.min(list.length - 1, i + d));
     select(list[i].mint, true); const el = rows.get(list[i].mint); if (el) el.scrollIntoView({ block: 'nearest' });
   }
-  const SORTS = ['live', 'trending', 'gainers', 'losers', 'watch'];
+  const SORTS = ['live', 'stretch', 'grad', 'trending', 'gainers', 'losers', 'watch'];
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const tg = e.target, typing = tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.isContentEditable);
@@ -655,13 +667,90 @@
     else if (k === '[' || k === ']') { const i = SORTS.indexOf(S.sort); setSort(SORTS[(i + (k === ']' ? 1 : SORTS.length - 1)) % SORTS.length]) }
   });
 
-  /* ---------- sound (the score lives in score.js) ---------- */
-  (function () {
-    const b = $('#sndBtn'), T = window.TRS; if (!b) return;
-    if (!T || !T.ok) { b.hidden = true; return }
-    const paint = () => { b.classList.toggle('on', T.on); b.setAttribute('aria-pressed', T.on); b.title = T.on ? 'sound off' : 'play the score' };
-    T.onChange(paint); paint(); b.addEventListener('click', () => T.toggle());
-  })();
+  /* ---------- wallet: sign in with any Solana wallet (free, no transaction) ---------- */
+  const WALLETS = [
+    { id: 'phantom', name: 'Phantom', get: () => (window.phantom && window.phantom.solana && window.phantom.solana.isPhantom && window.phantom.solana) || (window.solana && window.solana.isPhantom && window.solana) || null, install: 'https://phantom.app/download', open: u => 'https://phantom.app/ul/browse/' + encodeURIComponent(u) + '?ref=' + encodeURIComponent(location.origin) },
+    { id: 'solflare', name: 'Solflare', get: () => (window.solflare && window.solflare.isSolflare && window.solflare) || null, install: 'https://solflare.com/download', open: u => 'https://solflare.com/ul/v1/browse/' + encodeURIComponent(u) + '?ref=' + encodeURIComponent(location.origin) },
+    { id: 'backpack', name: 'Backpack', get: () => (window.backpack && window.backpack.isBackpack && window.backpack) || null, install: 'https://backpack.app/downloads' },
+  ];
+  const generic = () => { const p = window.solana; return p && !p.isPhantom && typeof p.connect === 'function' ? p : null };
+  const mobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+  const wb = $('#walletBtn'), wm = $('#wmenu');
+  function paintWallet() {
+    wb.classList.toggle('on', !!WAL);
+    wb.querySelector('span').textContent = WAL ? WAL.wallet.slice(0, 4) + '…' + WAL.wallet.slice(-4) : 'connect wallet';
+    wb.title = WAL ? WAL.wallet : 'sign in with a Solana wallet';
+    upCall(); renderMine();
+  }
+  function closeMenu() { wm.hidden = true; wb.setAttribute('aria-expanded', 'false') }
+  function openWallets() {
+    if (WAL) { wm.innerHTML = `<div class="wh">connected${WAL.name ? ' · ' + esc(WAL.name) : ''}</div><button type="button" data-w="copy"><span>${esc(short(WAL.wallet, 6))}</span><em>copy</em></button><a href="https://solscan.io/account/${WAL.wallet}" target="_blank" rel="noopener"><span>view on solscan</span><em>↗</em></a><button type="button" data-w="out"><span>disconnect</span></button>` }
+    else {
+      const rowsW = WALLETS.map(w => { const p = w.get(); if (p) return `<button type="button" data-w="${w.id}"><span>${w.name}</span><em>detected</em></button>`; if (mobile && w.open) return `<a href="${w.open(location.href)}"><span>${w.name}</span><em>open in app</em></a>`; return `<a href="${w.install}" target="_blank" rel="noopener"><span>${w.name}</span><em>install</em></a>` }).join('');
+      const g = generic() ? '<button type="button" data-w="generic"><span>browser wallet</span><em>detected</em></button>' : '';
+      wm.innerHTML = `<div class="wh">sign in with a wallet</div>${rowsW}${g}<p>signing in is free. it only proves you own the wallet: no transaction, no fees, nothing leaves your wallet.</p>`;
+    }
+    wm.hidden = false; wb.setAttribute('aria-expanded', 'true');
+  }
+  wb.addEventListener('click', e => { e.stopPropagation(); if (!wm.hidden) return closeMenu(); openWallets() });
+  document.addEventListener('click', e => { if (!wm.hidden && !e.target.closest('#wal')) closeMenu() });
+  wm.addEventListener('click', e => {
+    const b = e.target.closest('button[data-w]'); if (!b) return; const k = b.dataset.w;
+    if (k === 'copy') { navigator.clipboard.writeText(WAL.wallet).then(() => toast('address copied')); return closeMenu() }
+    if (k === 'out') { disconnect(); return closeMenu() }
+    const w = WALLETS.find(x => x.id === k), p = k === 'generic' ? generic() : w && w.get();
+    if (p) signIn(p, w ? w.name : 'wallet');
+  });
+  const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s) };
+  async function signIn(p, name) {
+    closeMenu(); wb.classList.add('busy'); wb.querySelector('span').textContent = 'check your wallet…';
+    try {
+      const r = await p.connect(); const pkObj = (r && r.publicKey) || p.publicKey; if (!pkObj) throw new Error('the wallet did not share an address');
+      const pk = pkObj.toString();
+      const msg = '.trench wants you to sign in with your Solana wallet.\n\nwallet: ' + pk + '\nsite: ' + location.host + '\nissued: ' + new Date().toISOString() + '\n\nsigning is free. it only proves you own this wallet: no transaction, no fees.';
+      const sr = await p.signMessage(new TextEncoder().encode(msg), 'utf8');
+      let sig = sr && (sr.signature || sr); if (sig && sig.data && !sig.length) sig = sig.data;
+      sig = new Uint8Array(sig); if (sig.length !== 64) throw new Error('the wallet did not return a signature');
+      const j = await api('login', { wallet: pk, msg, sig: b64(sig) });
+      WAL = { wallet: j.wallet, token: j.token, uid: j.uid, name }; uid = j.uid;
+      try { localStorage.setItem('trench:wallet', JSON.stringify(WAL)) } catch (_) { }
+      toast('signed in as ' + short(pk)); cliOut('wallet connected: ' + pk, 'g');
+      if (p.on) try { p.on('accountChanged', a => { if (WAL && (!a || a.toString() !== WAL.wallet)) { disconnect(); toast('wallet changed. connect again.') } }) } catch (_) { }
+      loadMine(); loadBoard();
+    } catch (e) { const m = /reject|denied|cancel|declin/i.test(e && e.message || '') ? 'sign-in cancelled' : (e && e.message) || 'the wallet refused'; toast(m, true); cliOut(m, 'e') }
+    finally { wb.classList.remove('busy'); paintWallet() }
+  }
+  function disconnect() {
+    const w = WAL && WALLETS.find(x => x.name === WAL.name), p = w && w.get(); try { p && p.disconnect && p.disconnect() } catch (_) { }
+    WAL = null; uid = ''; S.mine = []; try { localStorage.removeItem('trench:wallet') } catch (_) { }
+    paintWallet(); drawChart(); toast('wallet disconnected');
+  }
+  paintWallet();
+
+  /* ---------- info: everything known about the open coin ---------- */
+  function flowOf() { let b = 0, s2 = 0, nb = 0, ns = 0; for (const t of S.trades) { const v = t.sol != null ? t.sol : (S.sol && t.usd ? t.usd / S.sol : 0); if (t.side === 'buy') { b += v; nb++ } else { s2 += v; ns++ } } return { b, s: s2, nb, ns } }
+  function paintFlow() {
+    const f = flowOf(), tot = f.b + f.s, el = $('#flow');
+    if (!tot) { el.innerHTML = ''; return }
+    const pb = f.b / tot * 100;
+    el.innerHTML = `<div class="fl"><span class="up">buys ${f.nb} · ${solx(f.b)} SOL</span><span class="dn">sells ${f.ns} · ${solx(f.s)} SOL</span></div><div class="fb"><i style="width:${pb.toFixed(1)}%"></i></div>`;
+  }
+  function renderInfo() {
+    const c = S.map.get(S.sel), el = $('#info'); if (!c) { el.innerHTML = '<div class="empty">pick a coin.</div>'; return }
+    const cv = curveOfC(c), grad = isGrad(c), row = (k, v) => v == null || v === '' ? '' : `<div class="ir"><span>${k}</span><b>${v}</b></div>`;
+    const ws = new Map(); for (const t of S.trades) { if (!t.wallet) continue; const v = t.sol != null ? t.sol : (S.sol && t.usd ? t.usd / S.sol : 0); const o = ws.get(t.wallet) || { net: 0, n: 0 }; o.net += t.side === 'buy' ? v : -v; o.n++; ws.set(t.wallet, o) }
+    const top = [...ws.entries()].sort((a, b) => Math.abs(b[1].net) - Math.abs(a[1].net)).slice(0, 6);
+    const soc = [['𝕏', c.twitter], ['site', c.website], ['tg', c.telegram]].filter(([, u]) => typeof u === 'string' && /^https:\/\//.test(u));
+    el.innerHTML = `<div class="ic"><span>${grad ? 'graduated · trading on PumpSwap' : cv != null ? 'bonding curve' : 'curve'}</span><b>${grad ? '100%' : cv != null ? cv.toFixed(1) + '%' : '—'}</b></div><div class="cvbar"><i style="width:${grad ? 100 : cv || 0}%"></i></div>
+      ${row('price', px(c) ? '$' + fp(px(c)) : null)}${row('market cap', mc(c) ? usd(mc(c)) : null)}${row('liquidity', c.liq ? usd(c.liq) : null)}${row('holders', c.holders ? c.holders.toLocaleString() : null)}${row('volume 1h', c.vol1h ? usd(c.vol1h) : null)}${row('buys · sells 1h', c.buys1h || c.sells1h ? c.buys1h + ' · ' + c.sells1h : null)}${row('traders 1h', c.traders1h || null)}${row('organic score', c.organic || null)}${row('age', tms(c) ? '<span data-t="' + tms(c) + '"></span>' : null)}${row('dev buy', c.devSol ? solx(c.devSol) + ' SOL' : null)}
+      ${c.dev ? `<div class="ir"><span>dev wallet</span><b><a href="https://solscan.io/account/${c.dev}" target="_blank" rel="noopener">${short(c.dev, 4)} ↗</a></b></div>` : ''}
+      <div class="ir"><span>mint</span><b><button type="button" data-copy="${c.mint}">${short(c.mint, 5)} copy</button></b></div>
+      ${top.length ? `<div class="ih">biggest wallets in the trades seen</div>${top.map(([w, o]) => `<a class="iw" href="https://solscan.io/account/${w}" target="_blank" rel="noopener"><span>${c.dev === w ? 'dev' : short(w, 4)}</span><em>${o.n} tx</em><b class="${o.net >= 0 ? 'up' : 'dn'}">${o.net >= 0 ? '+' : ''}${solx(o.net)} SOL</b></a>`).join('')}` : ''}
+      <div class="il">${soc.map(([k, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${k} ↗</a>`).join('')}<a href="https://pump.fun/coin/${c.mint}" target="_blank" rel="noopener">pump.fun ↗</a><a href="https://dexscreener.com/solana/${c.mint}" target="_blank" rel="noopener">dexscreener ↗</a><a href="https://solscan.io/token/${c.mint}" target="_blank" rel="noopener">solscan ↗</a></div>`;
+    tickAges();
+  }
+  const dirtyInfo = throttle(() => { paintFlow(); if ($('.rp[data-r="info"]').classList.contains('on')) renderInfo() }, 900);
+  setInterval(dirtyInfo, 3000);
 
   /* ---------- clock ---------- */
   setInterval(() => { $('#tClk').textContent = new Date().toTimeString().slice(0, 8) }, 1000);
@@ -710,7 +799,7 @@
 
   /* ---------- housekeeping: forget coins nobody is looking at ---------- */
   setInterval(() => {
-    const keep = new Set([S.sel, ...S.live, ...S.list.map(c => c.mint), ...S.top.map(c => c.mint), ...W.map(w => w.mint), ...S.mine.map(c => c.mint)]);
+    const keep = new Set([S.sel, ...S.live, ...stretch().map(c => c.mint), ...grads().map(c => c.mint), ...S.list.map(c => c.mint), ...S.top.map(c => c.mint), ...W.map(w => w.mint), ...S.mine.map(c => c.mint)]);
     for (const m of S.map.keys()) if (!keep.has(m)) S.map.delete(m);
   }, 300000);
 
