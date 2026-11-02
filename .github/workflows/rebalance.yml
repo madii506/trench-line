@@ -1,0 +1,11 @@
+name: rebalance
+on:
+  schedule: [{ cron: '7 * * * *' }]
+  workflow_dispatch: {}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: rebalance the basket
+        run: |
+          curl -sS -m 70 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ secrets.TRENCH_SITE }}/api/rebalance"
