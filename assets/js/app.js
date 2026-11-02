@@ -541,6 +541,7 @@
       const j = await api('board?p=' + P); S.board = j.board;
       const row = r => `<div class="lbr${r.rank === 1 ? ' top1' : ''}${uid && r.tag === uid.slice(-4) && r.callsign === callsign ? ' me' : ''}"><span class="rk">#${r.rank}</span><span><b>${esc(r.callsign)}</b> <small style="color:var(--mut2)">#${esc(r.tag)}</small></span><span class="pts">${r.points} pts</span><span>${r.won}W · ${r.lost}L</span><span class="hide">${r.open} open</span><span class="hide">${r.best == null ? '—' : '+' + r.best + '%'}</span></div>`;
       $('#lb').innerHTML = j.board.length ? '<div class="lbr h"><span>rank</span><span>callsign</span><span>points</span><span>record</span><span class="hide">open</span><span class="hide">best call</span></div>' + j.board.map(row).join('') : '<div class="empty" style="padding:22px">nobody on the board yet. make the first call.</div>';
+      renderPodium(j.board);
       $('#miniBoard').innerHTML = j.board.length ? j.board.slice(0, 10).map(r => `<div class="row"><em>#${r.rank}</em><span>${esc(r.callsign)}</span><span class="up">${r.points}</span></div>`).join('') : '<div class="empty">nobody on the board yet.</div>';
     } catch (e) { const m = /database/.test(e.message) ? 'the board opens once the database is switched on.' : e.message; $('#lb').innerHTML = '<div class="empty" style="padding:22px">' + esc(m) + '</div>'; $('#miniBoard').innerHTML = '<div class="empty">' + esc(m) + '</div>' }
   }
@@ -557,7 +558,7 @@
       countUp($('#vs'));
       $('#bk').innerHTML = t.length ? '<div class="bkr h"><span>#</span><span>coin</span><span>weight</span><span></span><span>score</span><span class="hide">1h</span><span class="hide2">24h</span></div>' + t.map((x, i) => `<div class="bkr" data-m="${x.mint}"><span style="color:var(--mut2)">${i + 1}</span><span class="n">${av(x)}<b>$${esc(x.sym)}</b></span><span class="wb"><i style="--w:${(x.weight / 0.25).toFixed(3)}"></i></span><span>${(x.weight * 100).toFixed(1)}%</span><span>${x.score.toFixed(1)}</span><span class="hide ${cls(x.why.ch1h)}">${pct(x.why.ch1h)}</span><span class="hide2 ${cls(x.why.ch24h)}">${pct(x.why.ch24h)}</span>
         <div class="why"><span>6h <em class="${cls(x.why.ch6h)}">${pct(x.why.ch6h)}</em></span><span>vol 1h <em>${usd(x.why.vol1h)}</em></span><span>organic <em>${x.why.organic}</em></span><span>holders <em>${x.why.holders.toLocaleString()}</em></span><span>liq <em>${usd(x.why.liq)}</em></span><span>mcap <em>${usd(x.why.mcap)}</em></span><span>age <em>${x.why.ageH}h</em></span></div></div>`).join('') : '<div class="empty" style="padding:22px">no coin passes the gates right now. the basket waits in SOL.</div>';
-      bkIO && bkIO.observe($('#bk'));
+      bkIO && bkIO.observe($('#bk')); renderTmap(t);
       const R = j.rules; $('#gates').innerHTML = `<span>gates</span><span>liq ≥ ${usd(R.minLiq)}</span><span>mcap ≥ ${usd(R.minMcap)}</span><span>holders ≥ ${R.minHolders}</span><span>organic ≥ ${R.minOrganic}</span><span>age ≥ ${R.minAgeH}h</span><span>vol 1h ≥ ${usd(R.minVol1h)}</span><span>top ${R.n} · ${R.floor * 100}–${R.cap * 100}% each</span>`;
       const eng = $('#engine');
       if (!j.engine) eng.innerHTML = '<b>engine: off.</b> it switches on with the $TRENCH treasury. until then the table above is the live target it will buy, scored from real data every minute.';
@@ -754,6 +755,97 @@
   }
   const dirtyInfo = throttle(() => { paintFlow(); if ($('.rp[data-r="info"]').classList.contains('on')) renderInfo() }, 900);
   setInterval(dirtyInfo, 3000);
+
+  /* ---------- the podium ---------- */
+  function renderPodium(b) {
+    const el = $('#podium'); if (!el) return;
+    const slot = (r, n) => r ? `<div class="pod p${n}"><div class="who">${esc(r.callsign)}<small>#${esc(r.tag)} · ${r.won}W ${r.lost}L</small></div><div class="blk"><b data-pts="${r.points}">${r.points}</b><span>#${n} · pts</span></div></div>`
+      : `<div class="pod p${n} open"><div class="who">open<small>${n === 1 ? 'make the first call' : 'take the spot'}</small></div><div class="blk"><b>#${n}</b><span>nobody yet</span></div></div>`;
+    el.innerHTML = slot(b[1], 2) + slot(b[0], 1) + slot(b[2], 3);
+  }
+  renderPodium([]);
+
+  /* ---------- the basket as a map: tile size = weight, colour = the last hour ---------- */
+  function squarify(items, x, y, w, h) {
+    const out = []; let rest = items.slice();
+    while (rest.length) {
+      const sh = Math.min(w, h); let row = [], best = Infinity;
+      for (const it of rest) { const r2 = row.concat(it), sum = r2.reduce((a, b) => a + b.v, 0), mx = Math.max(...r2.map(r => r.v)), mn = Math.min(...r2.map(r => r.v)); const worst = Math.max(sh * sh * mx / (sum * sum), sum * sum / (sh * sh * mn)); if (worst <= best) { row = r2; best = worst } else break }
+      const sum = row.reduce((a, b) => a + b.v, 0);
+      if (w >= h) { const cw = sum / h; let yy = y; for (const it of row) { const ch = it.v / cw; out.push({ ...it, x, y: yy, w: cw, h: ch }); yy += ch } x += cw; w -= cw }
+      else { const ch = sum / w; let xx = x; for (const it of row) { const cw2 = it.v / ch; out.push({ ...it, x: xx, y, w: cw2, h: ch }); xx += cw2 } y += ch; h -= ch }
+      rest = rest.slice(row.length);
+    }
+    return out;
+  }
+  let tmapData = [];
+  function renderTmap(t) {
+    const el = $('#tmap'); if (!el) return; if (t) tmapData = t;
+    if (!tmapData.length) { el.innerHTML = '<div class="empty">no coin passes the gates right now. the basket waits in SOL.</div>'; return }
+    const r = el.getBoundingClientRect(), W = 100 * (r.width / Math.max(1, r.height) || 1.6), H = 100;
+    const tot = tmapData.reduce((a, b) => a + b.weight, 0) || 1;
+    const tiles = squarify(tmapData.slice().sort((a, b) => b.weight - a.weight).map(x => ({ ...x, v: x.weight / tot * W * H })), 0, 0, W, H);
+    el.innerHTML = tiles.map((x, i) => {
+      const ch = x.why.ch1h, k = Math.min(1, Math.abs(ch) / 25), bg = ch >= 0 ? `rgba(95,224,138,${(.08 + .32 * k).toFixed(3)})` : `rgba(255,107,94,${(.08 + .3 * k).toFixed(3)})`;
+      const small = x.w / W * r.width < 120 || x.h / H * r.height < 80;
+      return `<button type="button" class="tile${small ? ' sm' : ''}" data-m="${x.mint}" style="left:${(x.x / W * 100).toFixed(3)}%;top:${(x.y / H * 100).toFixed(3)}%;width:${(x.w / W * 100).toFixed(3)}%;height:${(x.h / H * 100).toFixed(3)}%;background:${bg};animation:pop .6s var(--e) ${(i * .06).toFixed(2)}s both"><span class="tt">${av(x)}<b>$${esc(x.sym)}</b></span><span><span class="tw">${(x.weight * 100).toFixed(1)}%</span><br><span class="tc ${cls(ch)}">${pct(ch)} 1h · ${pct(x.why.ch24h)} 24h</span></span><span class="tx">mcap ${usd(x.why.mcap)} · vol 1h ${usd(x.why.vol1h)} · ${x.why.holders.toLocaleString()} holders · open in the terminal ›</span></button>`;
+    }).join('');
+  }
+  $('#tmap').addEventListener('click', e => { const b = e.target.closest('.tile'); if (!b) return; const x = tmapData.find(t => t.mint === b.dataset.m); if (x && !S.map.has(x.mint)) merge({ mint: x.mint, sym: x.sym, icon: x.icon }); select(b.dataset.m); scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }) });
+  new ResizeObserver(() => renderTmap()).observe($('#tmap'));
+
+  /* ---------- try the scoring ---------- */
+  const calc = { side: 'long', move: 6 };
+  function scoreOf(side, movePct) { const m = movePct / 100; if (Math.abs(m) < .002) return ['push', 0]; const good = side === 'long' ? m > 0 : m < 0; return good ? ['won', 100 + Math.min(400, Math.round(Math.abs(m) * 1000))] : ['lost', -50] }
+  function paintCalc() {
+    const [res, pts] = scoreOf(calc.side, calc.move), m = calc.move;
+    $('#cMoveV').textContent = pct(m, 1); $('#cMove').value = Math.max(-30, Math.min(30, m));
+    const box = $('.cres'); box.className = 'cres ' + res; $('#cRes').textContent = res; $('#cPts').textContent = (pts > 0 ? '+' : '') + pts + ' pts';
+    // a little price path from the entry to the close
+    const W = 420, H = 160, y0 = H * .55, span = Math.max(12, Math.abs(m)) * 1.25, yOf = v => y0 - v / span * (H * .42);
+    let seed = Math.round(Math.abs(m) * 10) + (calc.side === 'long' ? 1 : 7); const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const pts2 = []; for (let i = 0; i <= 40; i++) { const k = i / 40, v = m * (k * k * (3 - 2 * k)) + (i && i < 40 ? (rnd() - .5) * span * .18 : 0); pts2.push([20 + k * (W - 60), yOf(v)]) }
+    const col = res === 'won' ? '#5fe08a' : res === 'lost' ? '#ff6b5e' : '#93b39c';
+    $('#cChart').innerHTML = `<line x1="0" x2="${W}" y1="${y0}" y2="${y0}" stroke="rgba(238,243,226,.25)" stroke-dasharray="4 5"/><text x="6" y="${y0 - 6}" fill="rgba(147,179,156,.8)" font-size="11" font-family="JB,monospace">entry</text>
+      <path d="M${pts2.map(p => p.map(n => n.toFixed(1)).join(' ')).join(' L')}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linejoin="round"/>
+      <circle cx="${pts2[40][0].toFixed(1)}" cy="${pts2[40][1].toFixed(1)}" r="5" fill="${col}"><animate attributeName="r" values="4;8;4" dur="1.6s" repeatCount="indefinite"/></circle>
+      <text x="${(pts2[40][0] - 8).toFixed(1)}" y="${(pts2[40][1] + (m >= 0 ? -12 : 20)).toFixed(1)}" fill="${col}" font-size="12" text-anchor="end" font-family="JB,monospace">close ${pct(m, 1)}</text>`;
+  }
+  $('#cSide').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; calc.side = b.dataset.side; $$('#cSide button').forEach(x => x.classList.toggle('on', x === b)); $('#cSide').classList.toggle('hedge', calc.side === 'hedge'); segInd($('#cSide')); paintCalc() });
+  $('#cMove').addEventListener('input', e => { calc.move = +e.target.value; paintCalc() });
+  $$('.cpre button').forEach(b => b.addEventListener('click', () => { calc.move = +b.dataset.m; paintCalc() }));
+  paintCalc();
+
+  /* ---------- how it works: the money and the calls, moving ---------- */
+  (function pipe() {
+    const svg = $('#pipeSvg'); if (!svg) return;
+    const N = [[90, 70, 'pump.fun', 'v0'], [330, 70, '$TRENCH trades', 'every buy and sell'], [570, 70, 'creator fees', 'claimed hourly'], [810, 70, 'the engine', 'public wallet'], [1080, 70, 'the basket', 'v4'], [330, 190, 'you', 'a callsign'], [600, 190, 'calls', 'long or hedge'], [870, 190, 'the board', 'v7']];
+    const L = [[0, 1], [1, 2], [2, 3], [3, 4], [5, 6], [6, 7]];
+    const STEP = { 0: [0, 1, 1, 2], 1: [2, 3, 3, 4], 2: [4, 4, 3, 4], 3: [5, 6, 6, 7] };
+    const nd = ([x, y, t, sub], i) => `<g class="nd" data-i="${i}" transform="translate(${x},${y})"><rect x="-95" y="-30" width="190" height="60" rx="12"/><text text-anchor="middle" y="-3">${esc(t)}</text><text class="${/^v\d$/.test(sub) ? 'v' : 's'}" text-anchor="middle" y="16" id="pv${i}">${/^v\d$/.test(sub) ? '…' : esc(sub)}</text></g>`;
+    const path = ([a, b], i) => { const A = N[a], B = N[b]; return `<path class="pl" id="pl${i}" data-a="${a}" data-b="${b}" d="M${A[0] + 95} ${A[1]} C ${(A[0] + B[0]) / 2} ${A[1]}, ${(A[0] + B[0]) / 2} ${B[1]}, ${B[0] - 95} ${B[1]}"/>` };
+    const loop = `<path class="pl" id="plL" d="M1150 50 C 1220 -10, 940 -10, 1010 50"/>`, link = `<path class="pl dash" id="plK" d="M600 160 C 600 120, 160 140, 110 100"/>`;
+    svg.innerHTML = L.map(path).join('') + loop + link + N.map(nd).join('') + `<text class="lane" x="20" y="22">THE MONEY</text><text class="lane" x="20" y="242">THE CALLS</text><g id="pdots"></g>`;
+    const paths = [...L.map((_, i) => $('#pl' + i, svg)), $('#plL', svg), $('#plK', svg)], dots = [];
+    paths.forEach((p, pi) => { const len = p.getTotalLength(), k = Math.max(2, Math.round(len / 60)); for (let j = 0; j < k; j++) { const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); c.setAttribute('r', pi === 7 ? 2 : 3); c.setAttribute('class', 'pd'); $('#pdots', svg).appendChild(c); dots.push({ c, p, len, off: j / k, pi }) } });
+    let hot = -1;
+    $$('#how .steps li').forEach((li, i) => { li.addEventListener('mouseenter', () => setHot(i)); li.addEventListener('mouseleave', () => setHot(-1)); li.addEventListener('click', () => setHot(hot === i ? -1 : i)) });
+    function setHot(i) { hot = i; const on = i >= 0 ? STEP[i] : []; $$('.nd', svg).forEach(n => n.classList.toggle('hot', on.includes(+n.dataset.i))); paths.forEach((p, pi) => p.classList.toggle('hot', i >= 0 && ((pi < 6 && on.includes(+p.dataset.a) && on.includes(+p.dataset.b)) || (pi === 6 && i === 2) || (pi === 7 && i === 3)))) }
+    let t0 = performance.now(), vis = false;
+    new IntersectionObserver(es => { vis = es[0].isIntersecting }).observe(svg);
+    (function loopF(now2) {
+      requestAnimationFrame(loopF); if (!vis || document.hidden) return;
+      const t = (now2 - t0) / 1000;
+      for (const d of dots) { const fast = d.p.classList.contains('hot') ? 2.4 : 1, u = ((d.off + t * .12 * fast * (300 / d.len)) % 1 + 1) % 1, pt = d.p.getPointAtLength(u * d.len); d.c.setAttribute('cx', pt.x.toFixed(1)); d.c.setAttribute('cy', pt.y.toFixed(1)); d.c.setAttribute('opacity', (Math.sin(u * Math.PI) * (fast > 1 ? 1 : .7)).toFixed(2)) }
+    })(t0);
+    // live numbers on the nodes
+    setInterval(() => {
+      const st = TS && TS.status(); const v = (i, txt) => { const e = $('#pv' + i, svg); if (e) e.textContent = txt };
+      v(0, st && st.state === 'live' ? st.perMin + ' new coins / min' : 'live coins');
+      v(4, S.basket ? (S.basket.target.length ? S.basket.target.length + ' coins · rebalanced hourly' : 'waiting in SOL') : 'reading…');
+      v(7, S.board.length ? S.board.length + ' on the board' : 'open for #1');
+    }, 2000);
+  })();
 
   /* ---------- clock ---------- */
   setInterval(() => { $('#tClk').textContent = new Date().toTimeString().slice(0, 8) }, 1000);
