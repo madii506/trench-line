@@ -1,0 +1,5 @@
+{
+  "cleanUrls": true,
+  "functions": { "api/rebalance.js": { "maxDuration": 60 } },
+  "headers": [{ "source": "/assets/(.*)", "headers": [{ "key": "cache-control", "value": "public, max-age=300" }] }]
+}
